@@ -36,6 +36,7 @@ import org.gradle.internal.work.AsyncWorkCompletion;
 import org.gradle.internal.work.AsyncWorkTracker;
 import org.gradle.process.JavaForkOptions;
 import org.gradle.util.CollectionUtils;
+import org.gradle.workers.ForkMode;
 import org.gradle.workers.WorkerConfiguration;
 import org.gradle.workers.WorkerExecutionException;
 import org.gradle.workers.WorkerExecutor;
@@ -79,17 +80,17 @@ public class DefaultWorkerExecutor implements WorkerExecutor {
         WorkSpec spec = new ParamSpec(configuration.getParams());
         String description = configuration.getDisplayName() != null ? configuration.getDisplayName() : actionClass.getName();
         WorkerDaemonAction action = new WorkerDaemonRunnableAction(description, actionClass);
-        return submit(action, spec, configuration.getForkOptions().getWorkingDir(), configuration.isFork(), getDaemonForkOptions(actionClass, configuration));
+        return submit(action, spec, configuration.getForkOptions().getWorkingDir(), configuration.getForkMode(), getDaemonForkOptions(actionClass, configuration));
     }
 
-    private ListenableFuture<?> submit(final WorkerDaemonAction action, final WorkSpec spec, final File workingDir, final boolean fork, final DaemonForkOptions daemonForkOptions) {
+    private ListenableFuture<?> submit(final WorkerDaemonAction action, final WorkSpec spec, final File workingDir, final ForkMode fork, final DaemonForkOptions daemonForkOptions) {
         final Operation currentWorkerOperation = buildOperationWorkerRegistry.getCurrent();
         final BuildOperationExecutor.Operation currentBuildOperation = buildOperationExecutor.getCurrentOperation();
         ListenableFuture<DefaultWorkResult> workerDaemonResult = executor.submit(new Callable<DefaultWorkResult>() {
             @Override
             public DefaultWorkResult call() throws Exception {
                 try {
-                    WorkerDaemonFactory workerFactory = fork ? workerDaemonFactory : workerInProcessFactory;
+                    WorkerDaemonFactory workerFactory = fork == ForkMode.ALWAYS ? workerDaemonFactory : workerInProcessFactory;
                     WorkerDaemon worker = workerFactory.getDaemon(serverImplementationClass, workingDir, daemonForkOptions);
                     return worker.execute(action, spec, currentWorkerOperation, currentBuildOperation);
                 } catch (Throwable t) {
